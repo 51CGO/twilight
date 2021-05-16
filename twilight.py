@@ -6,74 +6,101 @@ import os
 import subprocess
 
 DEFAULT_STEP = 10
+DEFAULT_RATE = 100
 
-FILE_CACHE = os.path.join(os.environ['HOME'], '.cache', 'twilight')
-
-
-def check_value(rate):
-    if rate > 100 or rate < 10:
-        return False
-    return True
+DEFAULT_PATH_CONFIG = os.path.join(os.environ['HOME'], '.twilight.conf')
 
 
-def load():
+class Configuration(object):
 
-    if not os.path.isfile(FILE_CACHE):
-        return -1
+    def __init__(self, path_config):
+        self.file = path_config
+        self.rate = DEFAULT_RATE
+        self.step = DEFAULT_STEP
 
-    c = configparser.ConfigParser()
-    c.read(FILE_CACHE)
-    rate = c.getint('Brightness', 'Last')
+    def load(self, path_config=None):
 
-    return rate
+        if not path_config:
+            path_config = self.file
 
+        if not os.path.isfile(path_config):
+            return -1
 
-def save(rate):
+        c = configparser.ConfigParser()
+        c.read(path_config)
+        self.rate = c.getint('Brightness', 'Last')
 
-    dir_cache = os.path.dirname(FILE_CACHE)
-    if not os.path.isdir(dir_cache):
-        os.makedirs(dir_cache)
+    def save(self, path_config=None):
 
-    with open(FILE_CACHE, 'w') as fd:
+        if not path_config:
+            path_config = self.file
+
+        dir_cache = os.path.dirname(path_config)
+        if not os.path.isdir(dir_cache):
+            os.makedirs(dir_cache)
+
+        fd = open(path_config, 'w')
         c = configparser.ConfigParser()
         c.add_section('Brightness')
-        c.set('Brightness', 'Last', str(rate))
+        c.set('Brightness', 'Last', str(self.rate))
         c.write(fd)
+        fd.close()
+
+    def lighter(self):
+        self.rate += self.step
+
+    def darker(self):
+        self.rate -= self.step
+
+    def set(self, rate_new):
+        self.rate = rate_new
+
+    def fix(self):
+        if self.rate > 100:
+            self.rate = 100
+
+        elif self.rate < 0:
+            self.rate = 0
+
+    def apply(self):
+
+        value = 0.01 * self.rate
+        subprocess.call(
+            ['xrandr', '--output', 'eDP-1', '--brightness', str(value)])
 
 
 if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
     parser.add_argument('value')
-    parser.add_argument('--cache', default=FILE_CACHE, help='Cache file')
+    parser.add_argument(
+        '--config', '-c', default=DEFAULT_PATH_CONFIG,
+        help='Configuration file')
+    parser.add_argument(
+        '--display', '-d', help='Display')
     args = parser.parse_args()
+
+    print(args.config)
+
+    configuration = Configuration(args.config)
 
     if args.value in ['mem', '-', '+']:
 
         # restore previous value
-        rate = load()
+        configuration.load()
 
         if args.value == '+':
-            rate += DEFAULT_STEP
+            configuration.lighter()
 
         elif args.value == '-':
-            rate -= DEFAULT_STEP
+            configuration.darker()
 
     elif args.value.isdigit():
-        rate = int(args.value)
+        configuration.set(int(args.value))
 
     else:
         exit(1)
 
-    if rate > 100:
-        rate = 100
-
-    if rate < 10:
-        rate = 10
-
-    value = 0.01 * rate
-
-    subprocess.call(
-        ['xrandr', '--output', 'eDP-1', '--brightness', str(value)])
-
-    save(rate)
+    configuration.fix()
+    configuration.apply()
+    configuration.save()
