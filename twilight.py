@@ -13,10 +13,16 @@ DEFAULT_PATH_CONFIG = os.path.join(os.environ['HOME'], '.twilight.conf')
 
 class Configuration(object):
 
-    def __init__(self, path_config):
+    def __init__(self, path_config, display):
+
         self.file = path_config
         self.rate = DEFAULT_RATE
         self.step = DEFAULT_STEP
+
+        if display:
+            self.display = display
+        else:
+            self.display = self.get_primary_display()
 
     def load(self, path_config=None):
 
@@ -46,11 +52,17 @@ class Configuration(object):
         c.write(fd)
         fd.close()
 
-    def lighter(self):
-        self.rate += self.step
+    def lighter(self, step=0):
+        if step:
+            self.rate += step
+        else:
+            self.rate += self.step
 
-    def darker(self):
-        self.rate -= self.step
+    def darker(self, step=0):
+        if step:
+            self.rate += step
+        else:
+            self.rate -= self.step
 
     def set(self, rate_new):
         self.rate = rate_new
@@ -66,7 +78,24 @@ class Configuration(object):
 
         value = 0.01 * self.rate
         subprocess.call(
-            ['xrandr', '--output', 'eDP-1', '--brightness', str(value)])
+            ['xrandr', '--output', self.display, '--brightness', str(value)])
+
+    def get_primary_display(self):
+
+        display = None
+
+        xrandr = subprocess.Popen(
+            'xrandr', stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        out, err = xrandr.communicate()
+        for line in out.splitlines():
+
+            if line.count(b"connected primary"):
+
+                items = line.split()
+                display = items[0]
+                break
+
+        return display
 
 
 if __name__ == '__main__':
@@ -78,15 +107,15 @@ if __name__ == '__main__':
         help='Configuration file')
     parser.add_argument(
         '--display', '-d', help='Display')
+    parser.add_argument(
+        '--step', '-s', help='Step')
     args = parser.parse_args()
 
-    print(args.config)
-
-    configuration = Configuration(args.config)
+    configuration = Configuration(args.config, args.display)
 
     if args.value in ['mem', '-', '+']:
 
-        # restore previous value
+        # Restore previous value
         configuration.load()
 
         if args.value == '+':
