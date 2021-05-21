@@ -22,7 +22,7 @@ class Configuration(object):
         if display:
             self.display = display
         else:
-            self.display = self.get_primary_display()
+            self.display = Configuration.get_primary_display()
 
     def load(self, path_config=None):
 
@@ -80,7 +80,8 @@ class Configuration(object):
         subprocess.call(
             ['xrandr', '--output', self.display, '--brightness', str(value)])
 
-    def get_primary_display(self):
+    @staticmethod
+    def get_primary_display():
 
         display = None
 
