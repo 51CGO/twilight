@@ -12,13 +12,13 @@ Set the screen brightness to 60 %
 
 $ ./twilight.py 60
 
-Increase the brightness
+Increase the brightness by 10%
 
-$ ./twilight.py +
+$ ./twilight.py +10
 
-Decrease the brightness
+Decrease the brightness by 5%
 
-$ ./twilight.py -
+$ ./twilight.py -5
 
 Set the brightness to last used value
 
