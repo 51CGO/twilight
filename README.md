@@ -32,4 +32,4 @@ Just copy the script twilight.py anywhere you want, make it executable if needed
 
 Twilight is designed to be invisible in everyday life:
 * Add __twilight.py mem__ to your desktop startup configuration and the brightness will be set to the last used value
-* Link the brightness buttons of your keyboard to __twilight.py -__ and __twilight.py +__ to simply adujst the screnn brightness
+* Link the brightness buttons of your keyboard to __twilight.py -10__ and __twilight.py +10__ to simply adujst the screen brightness
