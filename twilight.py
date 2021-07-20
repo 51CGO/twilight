@@ -5,98 +5,54 @@ import configparser
 import os
 import subprocess
 
-DEFAULT_STEP = 10
 DEFAULT_RATE = 100
 
 DEFAULT_PATH_CONFIG = os.path.join(os.environ['HOME'], '.twilight.conf')
 
 
-class Configuration(object):
+def load(path_config):
 
-    def __init__(self, path_config, display):
+    c = configparser.ConfigParser()
+    c.read(path_config)
+    return c.getint('Brightness', 'Last')
 
-        self.file = path_config
-        self.rate = DEFAULT_RATE
-        self.step = DEFAULT_STEP
 
-        if display:
-            self.display = display
-        else:
-            self.display = Configuration.get_primary_display()
+def save(path_config, value):
 
-    def load(self, path_config=None):
+    dir_cache = os.path.dirname(path_config)
+    if not os.path.isdir(dir_cache):
+        os.makedirs(dir_cache)
 
-        if not path_config:
-            path_config = self.file
+    fd = open(path_config, 'w')
+    c = configparser.ConfigParser()
+    c.add_section('Brightness')
+    c.set('Brightness', 'Last', str(value))
+    c.write(fd)
+    fd.close()
 
-        if not os.path.isfile(path_config):
-            return -1
+def set(value):
 
-        c = configparser.ConfigParser()
-        c.read(path_config)
-        self.rate = c.getint('Brightness', 'Last')
+    val = 0.01 * value
+    display = get_display()
+    subprocess.call(
+        ['xrandr', '--output', display, '--brightness', str(val)])
 
-    def save(self, path_config=None):
+def get_display():
 
-        if not path_config:
-            path_config = self.file
+    display = None
 
-        dir_cache = os.path.dirname(path_config)
-        if not os.path.isdir(dir_cache):
-            os.makedirs(dir_cache)
+    xrandr = subprocess.Popen(
+        'xrandr', stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    out, err = xrandr.communicate()
+    for line in out.splitlines():
 
-        fd = open(path_config, 'w')
-        c = configparser.ConfigParser()
-        c.add_section('Brightness')
-        c.set('Brightness', 'Last', str(self.rate))
-        c.write(fd)
-        fd.close()
+        if line.count(b"connected primary"):
 
-    def lighter(self, step=0):
-        if step:
-            self.rate += step
-        else:
-            self.rate += self.step
+            items = line.split()
+            display = items[0]
+            break
 
-    def darker(self, step=0):
-        if step:
-            self.rate += step
-        else:
-            self.rate -= self.step
-
-    def set(self, rate_new):
-        self.rate = rate_new
-
-    def fix(self):
-        if self.rate > 100:
-            self.rate = 100
-
-        elif self.rate < 0:
-            self.rate = 0
-
-    def apply(self):
-
-        value = 0.01 * self.rate
-        subprocess.call(
-            ['xrandr', '--output', self.display, '--brightness', str(value)])
-
-    @staticmethod
-    def get_primary_display():
-
-        display = None
-
-        xrandr = subprocess.Popen(
-            'xrandr', stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        out, err = xrandr.communicate()
-        for line in out.splitlines():
-
-            if line.count(b"connected primary"):
-
-                items = line.split()
-                display = items[0]
-                break
-
-        return display
+    return display
 
 
 if __name__ == '__main__':
@@ -107,30 +63,40 @@ if __name__ == '__main__':
         '--config', '-c', default=DEFAULT_PATH_CONFIG,
         help='Configuration file')
     parser.add_argument(
-        '--display', '-d', help='Display')
-    parser.add_argument(
-        '--step', '-s', help='Step')
+        '--force', '-f', action="store_true",
+        help='Force application of exotic values')
     args = parser.parse_args()
 
-    configuration = Configuration(args.config, args.display)
+    value = None
 
-    if args.value in ['mem', '-', '+']:
+    if args.value == 'mem':
+        value = load(args.config)
 
-        # Restore previous value
-        configuration.load()
+    elif args.value[0] == "+":
 
-        if args.value == '+':
-            configuration.lighter()
+        if args.value[1:].isdigit():
+            value = load(args.config)
+            value += int(args.value[1:])
 
-        elif args.value == '-':
-            configuration.darker()
+    elif args.value[0] == "-":
+
+        if args.value[1:].isdigit():
+            value = load(args.config)
+            value -= int(args.value[1:])
 
     elif args.value.isdigit():
-        configuration.set(int(args.value))
+        value = int(args.value)
 
-    else:
+    if not value:
         exit(1)
 
-    configuration.fix()
-    configuration.apply()
-    configuration.save()
+    if not args.force:
+
+        if value > 100:
+            value = 100
+
+    if value < 0:
+        value = 0
+
+    set(value)
+    save(args.config, value)
